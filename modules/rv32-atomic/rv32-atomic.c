@@ -197,12 +197,34 @@ alu_control(uint32 funct3, uint32 funct7,bool is_imm, alu_op_t *op)
                 
 }
 
+// Decides whether a branch instruction should be taken based on the funct3 field and the values of registers a and b.
+static bool
+branch_taken(uint32 funct3, uint32 a, uint32 b, bool *valid)
+{
+        *valid = true;
+        switch (funct3) {
+        case 0x0: return a == b; // BEQ
+        case 0x1: return a != b; // BNE
+        case 0x4: return (int32)a < (int32)b; // BLT
+        case 0x5: return (int32)a >= (int32)b; // BGE
+        case 0x6: return a < b; // BLTU
+        case 0x7: return a >= b; // BGEU
+        default:
+                *valid = false;
+                return false;
+        }
+}
+
+
 void
 execute(rv32_t *cpu)
 {
         uint32 pc = cpu->pc;
         uint32 instr = fetch(cpu, pc);
         decode_t d = decode(instr);
+
+        uint32 rs1_val = reg_read_x(cpu, d.rs1);
+        uint32 rs2_val = reg_read_x(cpu, d.rs2);
 
         SIM_LOG_INFO(2, cpu->obj, 0, 
          "pc=0x%08x, instr=0x%08x, opcode=0x%02x, rd=x%u, funct3=0x%u, rs1=x%u, rs2=x%u, funct7=0x%02x"
@@ -217,22 +239,82 @@ execute(rv32_t *cpu)
                  ebreak(cpu);
                  return;
          }
-         
-         if (d.opcode == OPCODE_OP || d.opcode == OPCODE_OP_IMM) {
-                 bool is_imm = (d.opcode == OPCODE_OP_IMM);
-                 alu_op_t op;
-                 if (!alu_control(d.funct3, d.funct7, is_imm, &op)) {
-                         illegal_instruction(cpu, pc, instr);
-                         return;
-                 }
 
-                 uint32 a = reg_read_x(cpu, d.rs1);
-                 uint32 b = is_imm ? (uint32)imm_i(instr) : reg_read_x(cpu, d.rs2);
+         uint32 next_pc = pc + 4; // Default next PC is the next instruction
+         bool register_write = false;
+         uint32 wb_value = 0;
+         bool legal = true;
 
-                 reg_write_x(cpu, d.rd, alu_execute(op, a, b));
+         switch (d.opcode) {
+         case OPCODE_OP:
+         case OPCODE_OP_IMM:{
+                bool is_imm = (d.opcode == OPCODE_OP_IMM);
+                alu_op_t op;
+                if (!alu_control(d.funct3, d.funct7, is_imm, &op)) {
+                        legal = false;
+                        break;
+                }
+                uint32 b = is_imm ? imm_i(instr) : rs2_val;
+                wb_value = alu_execute(op, rs1_val, b);
+                register_write = true;
+                break;
+         }
+         case OPCODE_LUI:
+                wb_value = imm_u(instr);
+                register_write = true;
+                break;
+         case OPCODE_AUIPC:
+                wb_value = pc + imm_u(instr);
+                register_write = true;
+                break;
+        case OPCODE_JAL:
+                next_pc = pc + imm_j(instr);
+                wb_value = pc + 4; // Store return address in rd
+                register_write = true;
+                break;
+        case OPCODE_JALR:
+                if (d.funct3 != 0x0) {
+                        legal = false;
+                        break;
+                }
+                next_pc = (rs1_val + (uint32)imm_i(instr)) & ~1u; // Clear the least significant bit
+                wb_value = pc + 4; // Store return address in rd
+                register_write = true;
+                break;
+        case OPCODE_BRANCH: {
+                bool valid;
+                bool taken = branch_taken(d.funct3, rs1_val, rs2_val, &valid);
+                if (!valid) {
+                        legal = false;
+                        break;
+                }
+                if (taken) {
+                        next_pc = pc + (uint32)imm_b(instr);
+                }
+                break;
+        }
+        default:
+                legal = false;
+                break;
         }
 
-        cpu->pc += 4; // Move to the next instruction
+        if (!legal) {
+                illegal_instruction(cpu, pc, instr);
+                return;
+        }
+
+        if (next_pc & 0x3) {
+                SIM_LOG_ERROR(cpu->obj, 0, "instruction address misaligned: 0x%08x at pc 0x%08x", next_pc, pc);
+                rv32_halt(cpu, "instruction address misaligned");
+                return;
+        }
+
+        if(register_write )
+                reg_write_x(cpu, d.rd, wb_value);
+        
+                
+
+        cpu->pc = next_pc; // Move to the next instruction
         increment_step(cpu);
 }
 
