@@ -82,8 +82,8 @@ U_TYPE = {
 
 # Analysis of operands and instruction encoding
 
-REG_RE = re.compile(r"x(d\{1,2})")
-MEMOMORY_OPERAND_RE = re.compile(r"^(.*)\(\s*([^)]*?)\s*\$")
+REG_RE = re.compile(r"x(\d{1,2})")
+MEMOMORY_OPERAND_RE = re.compile(r"^(.*)\(\s*([^)]*?)\s*\)$")
 
 class AsmError(Exception):
     """Exception raised when an error occurs in the assembly program."""
@@ -91,8 +91,8 @@ class AsmError(Exception):
 def parse_register(reg_str):
     t = reg_str.strip().lower()
     m = REG_RE.fullmatch(t)
-    if m is None or int(m.group(1) > 31):
-        raise AsmError("Invalid register: '%s' is sperated 0x ... x31" % reg_str.trip())
+    if m is None or int(m.group(1)) > 31:
+        raise AsmError("Invalid register: '%s' is sperated 0x ... x31" % reg_str.strip())
     return int(m.group(1))
 
 def parse_int(reg_str):
@@ -132,7 +132,7 @@ def encode_i(imm, rs1, funct3, rd, opcode):
     return ((imm & 0xFFF) << 20) | (rs1 << 15) | (funct3 << 12) | (rd << 7) | opcode
 
 def encode_b(offset, rs2, rs1, funct3):
-    imm = offset & ox1FFF
+    imm = offset & 0x1FFF
     return ((((imm >> 12) & 0x1) << 31) | (((imm >> 5) & 0x3F) << 25) 
             | (rs2 << 20) | (rs1 << 15) | (funct3 << 12) 
             | (((imm >> 1) & 0xF) << 8) | (((imm >> 11) & 0x1) << 7) | OP_BRANCH)
@@ -205,7 +205,7 @@ def assemble_instruction(mnemonic, operands):
         expect(operands, 2, mnemonic)
         imm = parse_int(operands[1])
         check_range(imm, -0x80000, 0xfffff, " upper immediate")
-        return encode_u(imm >> 12, parse_register(operands[0]), U_TYPE[mnemonic])
+        return encode_u(imm, parse_register(operands[0]), U_TYPE[mnemonic])
     
     if mnemonic == 'ebreak':
         expect(operands, 0, mnemonic)
@@ -225,8 +225,9 @@ def assemble_file(path):
             try:
                 words.append(assemble_instruction(mnemonic, operands))
             except AsmError as e:
-                raise AsmError("%s: %d: %\n -> %s"
-                               % (path, linen, line.strip())) from None
+                raise AsmError("%s:%d: %s\n -> %s"
+                               % (path, linen, e, line.strip())) from None
+    return words
 
 def load_program(core, path, address):
     """Read the assembly program in the text file path and write the machine
