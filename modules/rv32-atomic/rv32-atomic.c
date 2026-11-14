@@ -321,10 +321,81 @@ execute(rv32_t *cpu)
 /* Text for Simics' disassemble CLI command (e.g. "disassemble 0x0 10")
    for the instruction word instr. Return a string allocated with Simics'
    allocators, e.g. MM_STRDUP() or a strbuf as below; Simics frees it. */
+
+static const char *const alu_name_r[] = {
+        [ALU_ADD] = "add",
+        [ALU_SUB] = "sub",
+        [ALU_SLL] = "sll",
+        [ALU_SLT] = "slt",
+        [ALU_SLTU] = "sltu",
+        [ALU_XOR] = "xor",
+        [ALU_SRL] = "srl",
+        [ALU_SRA] = "sra",
+        [ALU_OR]  = "or",
+        [ALU_AND] = "and"
+};
+
+static const char *const alu_name_i[] = {
+        [ALU_ADD] = "addi",
+        [ALU_SLL] = "slli",
+        [ALU_SLT] = "slti",
+        [ALU_SLTU] = "sltiu",
+        [ALU_XOR] = "xori",
+        [ALU_SRL] = "srli",
+        [ALU_SRA] = "srai",
+        [ALU_OR]  = "ori",
+        [ALU_AND] = "andi"
+};
+
+// Indexed by funct3, with NULL for illegal funct3 values.
+static const char *const branch_name[8] = {
+       "beq", "bne", NULL, NULL, "blt", "bge", "bltu", "bgeu"
+};
+
 char *
 rv32_disassemble(uint32 instr)
 {
+        decode_t d = decode(instr);
         strbuf_t b = SB_INIT;
-        sb_addfmt(&b, ".word 0x%08x", instr);
+
+        switch (d.opcode) {
+        case OPCODE_OP:
+        case OPCODE_OP_IMM: {
+                bool is_imm = (d.opcode == OPCODE_OP_IMM);
+                alu_op_t op;
+                if (!alu_control(d.funct3, d.funct7, is_imm, &op))
+                        break;
+                if (!is_imm)
+                        sb_addfmt(&b, "%s x%u, x%u, x%u", alu_name_r[op], d.rd, d.rs1, d.rs2);
+                else if (op == ALU_SLL || op == ALU_SRL || op == ALU_SRA)
+                        sb_addfmt(&b, "%s x%u, x%u, %u", alu_name_i[op], d.rd, d.rs1, d.rs2);
+                else
+                        sb_addfmt(&b, "%s x%u, x%u, %d", alu_name_i[op], d.rd, d.rs1, imm_i(instr));
+                break;
+        }
+        case OPCODE_LUI:
+                sb_addfmt(&b, "lui x%u, 0x%x", d.rd, imm_u(instr) >> 12);
+                break;
+        case OPCODE_AUIPC:
+                sb_addfmt(&b, "auipc x%u, 0x%x", d.rd, imm_u(instr) >> 12);
+                break;
+        case OPCODE_JAL:
+                sb_addfmt(&b, "jal x%u, %d", d.rd, imm_j(instr));
+                break;
+        case OPCODE_JALR:
+                if (d.funct3 == 0x0)
+                        sb_addfmt(&b, "jalr x%u, %d(x%u)", d.rd, imm_i(instr), d.rs1);
+                break;
+        case OPCODE_BRANCH:
+                if (branch_name[d.funct3] != NULL)
+                        sb_addfmt(&b, "%s x%u, x%u, %d", branch_name[d.funct3], d.rs1, d.rs2, imm_b(instr));
+                break;
+        case OPCODE_SYSTEM:
+                if (instr == INSTUCTION_EBREAK)
+                        sb_addfmt(&b, "ebreak");
+                break;
+        }
+        if (sb_len(&b) == 0)
+                sb_addfmt(&b, ".word 0x%08x", instr);
         return sb_detach(&b);
 }

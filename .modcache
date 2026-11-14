@@ -763,5 +763,5 @@ file 209984 1776108742 toggle-i2c.dll
 cap VER:6250;BLD:7150;BLD_NS:simics;BUILDDATE:1775808088;MOD:toggle-i2c;ABI:7150;API:6;PY_VERSION:0;PY_MINOR_VERSION:0;HOSTTYPE:win64;USRVER:2c073defa229a64ec136958f5cf2b5c53395e08c;CLS:toggle_i2c;MODULE_LOAD;THREADSAFE;
 dir C:\Users\axelr\simics-projects\my-intel-simics-project-4
 dir C:\Users\axelr\simics-projects\my-intel-simics-project-4\win64\lib
-file 565267 1794679274 rv32-atomic.dll
+file 570168 1794682117 rv32-atomic.dll
 cap VER:6250;BLD:0;BLD_NS:__simics_project__;BUILDDATE:1794626871;MOD:rv32-atomic;ABI:7155;API:7;PY_VERSION:0;PY_MINOR_VERSION:0;HOSTTYPE:win64;CLS:rv32-atomic;CLS:rv32-atomic-core;MODULE_LOAD;THREADSAFE;
