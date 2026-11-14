@@ -111,6 +111,91 @@ imm_j(uint32 instr)
         return sign_extend(imm, 21);
 }
 
+// Operations of the RV32I Integer ALU. The ALU performs arithmetic and logical operations on the operands provided by the instruction.
+typedef enum {
+        ALU_ADD,
+        ALU_SUB,
+        ALU_SLL,
+        ALU_SLT,
+        ALU_SLTU,
+        ALU_XOR,
+        ALU_SRL,
+        ALU_SRA,
+        ALU_OR,
+        ALU_AND,
+} alu_op_t;
+
+// Execute the ALU operation specified by op on the operands a and b. The result of the operation is returned as a uint32 value.
+static uint32
+alu_execute(alu_op_t op, uint32 a, uint32 b)
+{
+        uint32 shamt = b & 0x1F; // Shift amount is the lower 5 bits of b
+        switch (op) {
+        case ALU_ADD:
+                return a + b;
+        case ALU_SUB:
+                return a - b;
+        case ALU_SLL:
+                return a << shamt;
+        case ALU_SLT:
+                return (int32)a < (int32)b ? 1 : 0;
+        case ALU_SLTU:
+                return a < b ? 1 : 0;
+        case ALU_XOR:
+                return a ^ b;
+        case ALU_SRL:
+                return a >> shamt;
+        case ALU_SRA:
+                if (a & 0x80000000u)
+                        return (a >> shamt) | ~(0xFFFFFFFFu >> shamt);
+                return a >> shamt;
+        case ALU_OR:
+                return a | b;
+        case ALU_AND:
+                return a & b;
+        }
+        return 0; // Should never reach here
+}
+
+static bool
+alu_control(uint32 funct3, uint32 funct7,bool is_imm, alu_op_t *op)
+{
+        switch (funct3) {
+        case 0x0:
+                if (is_imm || funct7 == 0x00){
+                        *op = ALU_ADD;
+                        return true;
+                }
+                if (funct7 == 0x20) {
+                        *op = ALU_SUB;
+                        return true;
+                }
+                return false;
+        case 0x1:
+                if(funct7 != 0x00) return false;
+                *op = ALU_SLL;
+                return true;
+        case 0x5:
+                if (funct7 == 0x00) {
+                        *op = ALU_SRL;
+                        return true;
+                }
+                if (funct7 == 0x20) {
+                        *op = ALU_SRA;
+                        return true;
+                }
+                return false;
+        case 0x2: *op = ALU_SLT; break;
+        case 0x3: *op = ALU_SLTU; break;
+        case 0x4: *op = ALU_XOR; break;
+        case 0x6: *op = ALU_OR; break;
+        case 0x7: *op = ALU_AND; break;
+        default: return false;
+        }
+
+        return is_imm || funct7 == 0x00;
+                
+}
 
 void
 execute(rv32_t *cpu)
@@ -132,8 +217,23 @@ execute(rv32_t *cpu)
                  ebreak(cpu);
                  return;
          }
-         cpu->pc += 4; // Move to the next instruction
-         increment_step(cpu);
+         
+         if (d.opcode == OPCODE_OP || d.opcode == OPCODE_OP_IMM) {
+                 bool is_imm = (d.opcode == OPCODE_OP_IMM);
+                 alu_op_t op;
+                 if (!alu_control(d.funct3, d.funct7, is_imm, &op)) {
+                         illegal_instruction(cpu, pc, instr);
+                         return;
+                 }
+
+                 uint32 a = reg_read_x(cpu, d.rs1);
+                 uint32 b = is_imm ? (uint32)imm_i(instr) : reg_read_x(cpu, d.rs2);
+
+                 reg_write_x(cpu, d.rd, alu_execute(op, a, b));
+        }
+
+        cpu->pc += 4; // Move to the next instruction
+        increment_step(cpu);
 }
 
 /* Text for Simics' disassemble CLI command (e.g. "disassemble 0x0 10")
