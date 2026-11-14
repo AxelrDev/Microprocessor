@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "name": "My Intel Simics Project 4",
+  "description": "This project is based of the \"C:\\Users\\axelr\\OneDrive\\Documentos\\simics-7-packages-2026-18-win64.ispm\" repository",
+  "favorite": false,
+  "manifestName": "Public Intel® Simics® Simulator",
+  "manifestGroup": "qsp-x86-public-7",
+  "manifestVersion": "2026ww18.3"
+}

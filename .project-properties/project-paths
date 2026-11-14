@@ -1,0 +1,5 @@
+project: C:\Users\axelr\simics-projects\my-intel-simics-project-4
+simics-root: C:\Users\axelr\AppData\Local\Programs\Simics\simics-7.84.0
+simics-model-builder: C:\Users\axelr\AppData\Local\Programs\Simics\simics-7.84.0
+simics-python: C:\Users\axelr\AppData\Local\Python\pythoncore-3.14-64
+mingw: C:\mingw64
