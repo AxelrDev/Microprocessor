@@ -226,7 +226,7 @@ def assemble_file(path):
                 words.append(assemble_instruction(mnemonic, operands))
             except AsmError as e:
                 raise AsmError("%s:%d: %s\n -> %s"
-                               % (path, linen, line.strip())) from None
+                               % (path, linen, e, line.strip())) from None
     return words
 
 def load_program(core, path, address):
