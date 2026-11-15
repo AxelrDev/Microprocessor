@@ -1,0 +1,28 @@
+# t01-alu.txt - ALU corner cases (no branches, no lui/auipc)
+addi  x1, x0, -1        # 0x00  x1 = 0xffffffff (-1)
+addi  x2, x0, 1         # 0x04  x2 = 1
+add   x3, x1, x2        # 0x08  -1 + 1 wraps to 0
+sub   x4, x0, x2        # 0x0c  0 - 1 = 0xffffffff
+slli  x5, x2, 31        # 0x10  x5 = 0x80000000 (INT_MIN)
+addi  x6, x5, -1        # 0x14  x6 = 0x7fffffff (INT_MAX)
+add   x7, x6, x2        # 0x18  INT_MAX + 1 wraps to 0x80000000
+slt   x8, x5, x6        # 0x1c  signed: INT_MIN < INT_MAX -> 1
+sltu  x9, x5, x6        # 0x20  unsigned: 0x80000000 < 0x7fffffff -> 0
+slt   x10, x1, x2       # 0x24  signed: -1 < 1 -> 1
+sltu  x11, x1, x2       # 0x28  unsigned: 0xffffffff < 1 -> 0
+sltiu x12, x0, 1        # 0x2c  0 < 1 -> 1
+sltiu x13, x2, -1       # 0x30  imm sign-extended to 0xffffffff: 1 < 0xffffffff -> 1
+slti  x14, x1, -1       # 0x34  -1 < -1 -> 0
+sra   x15, x5, x2       # 0x38  0x80000000 >>a 1 = 0xc0000000
+srai  x16, x5, 31       # 0x3c  0x80000000 >>a 31 = 0xffffffff
+srli  x17, x5, 31       # 0x40  0x80000000 >>l 31 = 1
+addi  x18, x0, 33       # 0x44  x18 = 33
+sll   x19, x2, x18      # 0x48  shamt = 33 & 31 = 1 -> 2
+srl   x20, x1, x18      # 0x4c  shamt = 1 -> 0x7fffffff
+xori  x21, x1, -1       # 0x50  bitwise NOT of -1 -> 0
+andi  x22, x1, -2048    # 0x54  0xfffff800
+ori   x23, x0, -1       # 0x58  0xffffffff
+addi  x24, x0, 1024     # 0x5c  imm bit 10 = funct7 bit 5: must stay ADD -> 0x400
+sub   x25, x6, x1       # 0x60  INT_MAX - (-1) wraps to 0x80000000
+addi  x0, x2, 5         # 0x64  write to x0 is ignored
+ebreak                  # 0x68

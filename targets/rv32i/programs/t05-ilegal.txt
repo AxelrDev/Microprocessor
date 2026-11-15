@@ -1,0 +1,7 @@
+# t05-ilegal.txt - illegal instruction handling.
+# Before "run", overwrite the word at 0x04 with 0x022081b3 (mul x3, x1, x2,
+# from the M extension, not supported by RV32I).
+addi  x1, x0, 1           # 0x00  x1 = 1
+addi  x2, x0, 2           # 0x04  replaced by the illegal word
+addi  x3, x0, 3           # 0x08  never reached
+ebreak                    # 0x0c  never reached

@@ -1,0 +1,4 @@
+# t03-misaligned.txt - jump to a non 4-byte aligned address
+addi  x1, x0, 7           # 0x00  x1 = 7
+jal   x1, 2               # 0x04  target 0x06 is misaligned: stop, x1 keeps 7
+ebreak                    # 0x08  never reached

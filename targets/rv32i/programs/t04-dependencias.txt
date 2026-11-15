@@ -1,0 +1,31 @@
+# t04-dependencias.txt - data (RAW/WAW/WAR) and control dependencies.
+# Single cycle and pipeline must give the same final state.
+# x31 is an error counter: it must end at 0.
+addi  x1, x0, 5           # 0x00  x1 = 5
+addi  x2, x1, 3           # 0x04  RAW distance 1 on x1: x2 = 8
+add   x3, x1, x2          # 0x08  RAW x1 (distance 2) and x2 (distance 1): x3 = 13
+sub   x4, x3, x1          # 0x0c  RAW x3 (distance 1) and x1 (distance 3): x4 = 8
+add   x5, x4, x4          # 0x10  same register in both operands: x5 = 16
+addi  x5, x5, 1           # 0x14  WAW + RAW on x5: x5 = 17
+addi  x6, x5, 0           # 0x18  must read the newest x5: x6 = 17
+addi  x0, x0, 99          # 0x1c  write to x0 is discarded
+add   x7, x0, x6          # 0x20  must read x0 = 0, not 99: x7 = 17
+addi  x8, x6, 0           # 0x24  WAR: reads x6 before it is overwritten: x8 = 17
+addi  x6, x0, 1           # 0x28  WAR: x6 = 1
+lui   x9, 0x1             # 0x2c  x9 = 0x1000
+addi  x9, x9, -1          # 0x30  RAW after lui: x9 = 0xfff
+auipc x10, 0              # 0x34  x10 = 0x34
+addi  x10, x10, 16        # 0x38  RAW after auipc: x10 = 0x44
+jalr  x11, 0(x10)         # 0x3c  target from the previous instruction: to 0x44, x11 = 0x40
+addi  x31, x31, 1         # 0x40  error (skipped)
+addi  x12, x11, 4         # 0x44  RAW on the link register: x12 = 0x44
+addi  x13, x0, 3          # 0x48  loop counter
+addi  x13, x13, -1        # 0x4c  loop body
+bne   x13, x0, -4         # 0x50  branch depends on the previous instruction
+addi  x14, x13, 7         # 0x54  x13 = 0 after the loop: x14 = 7
+beq   x14, x14, 8         # 0x58  taken, to 0x60
+addi  x31, x31, 1         # 0x5c  error (skipped)
+jal   x15, 8              # 0x60  x15 = 0x64, to 0x68
+addi  x31, x31, 1         # 0x64  error (skipped)
+add   x16, x15, x14       # 0x68  RAW on the jal link: x16 = 0x64 + 7 = 0x6b
+ebreak                    # 0x6c

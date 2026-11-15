@@ -1,0 +1,29 @@
+# t02-control.txt - branches, jumps, lui/auipc corner cases
+# x31 is an error counter: it must end at 0.
+lui   x1, 0x80000         # 0x00  x1 = 0x80000000 (INT_MIN)
+addi  x2, x0, 1           # 0x04  x2 = 1
+blt   x1, x2, 8           # 0x08  signed: INT_MIN < 1 -> taken, to 0x10
+addi  x31, x31, 1         # 0x0c  error (skipped)
+bltu  x1, x2, 8           # 0x10  unsigned: 0x80000000 < 1 -> not taken
+addi  x3, x3, 1           # 0x14  x3 = 1
+bge   x1, x1, 8           # 0x18  equal values: bge taken, to 0x20
+addi  x31, x31, 1         # 0x1c  error (skipped)
+bgeu  x2, x1, 8           # 0x20  unsigned: 1 >= 0x80000000 -> not taken
+addi  x3, x3, 1           # 0x24  x3 = 2
+addi  x4, x0, 3           # 0x28  loop counter
+addi  x5, x5, 1           # 0x2c  loop body: x5 counts iterations
+addi  x4, x4, -1          # 0x30
+bne   x4, x0, -8          # 0x34  backward branch to 0x2c while x4 != 0
+jal   x6, 12              # 0x38  call: x6 = 0x3c, go to 0x44
+addi  x7, x7, 1           # 0x3c  runs after the return: x7 = 1
+jal   x0, 12              # 0x40  jump over the subroutine, no link
+addi  x8, x0, 42          # 0x44  subroutine body: x8 = 42
+jalr  x0, 0(x6)           # 0x48  return to 0x3c
+auipc x9, 0               # 0x4c  x9 = 0x4c
+jalr  x9, 13(x9)          # 0x50  rd == rs1, odd target: (0x4c + 13) & ~1 = 0x58, x9 = 0x54
+addi  x31, x31, 1         # 0x54  error (skipped)
+lui   x10, 0xfffff        # 0x58  x10 = 0xfffff000
+auipc x11, 0xfffff        # 0x5c  x11 = 0x5c + 0xfffff000 = 0xfffff05c
+beq   x0, x0, 8           # 0x60  always taken, to 0x68
+addi  x31, x31, 1         # 0x64  error (skipped)
+ebreak                    # 0x68

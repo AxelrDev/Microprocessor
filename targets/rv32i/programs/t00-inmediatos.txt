@@ -1,0 +1,10 @@
+beq  x0, x0, -4         # 0x00  B = -4
+jal  x1, -8             # 0x04  J = -8
+bne  x1, x2, 4094       # 0x08  B máximo
+blt  x1, x2, -4096      # 0x0c  B mínimo
+jal  x0, 1048574        # 0x10  J máximo
+jal  x0, -1048576       # 0x14  J mínimo
+addi x1, x0, -2048      # 0x18  I mínimo
+addi x1, x0, 2047       # 0x1c  I máximo
+lui  x1, 0xfffff        # 0x20  U = 0xfffff000
+ebreak                  # 0x24
