@@ -313,8 +313,29 @@ static void stage_ex (rv32_t *cpu, const id_ex_t *in, ex_wb_t *out, bool *redire
         if (!in->valid) {
                 return;
         }
+
         uint32 a = in->rs1_val;
         uint32 b = in->rs2_val;
+        
+        const ex_wb_t *prev = &cpu->ex_wb;
+        if (prev->valid && prev->reg_write && prev->rd != 0) {
+                if (in->ctrl.uses_rs1 && in->d.rs1 == prev->rd) {
+                        a = prev->wb_value;
+                        cpu->forwards++;
+                        SIM_LOG_INFO(3, cpu->obj, 0,
+                                     "forward rs1 x%u = 0x%08x (EX/WB -> EX) a pc 0x%08x",
+                                     prev->rd, prev->wb_value, in->pc);
+                }
+
+                if (in->ctrl.uses_rs2 && in->d.rs2 == prev->rd) {
+                        b = prev->wb_value;
+                        cpu->forwards++;
+                        SIM_LOG_INFO(3, cpu->obj, 0,
+                                     "forward rs2 x%u = 0x%08x (EX/WB -> EX) a pc 0x%08x",
+                                     prev->rd, prev->wb_value, in->pc);
+                }
+        }
+
         uint32 op2 = in->ctrl.alu_src_imm ? in->imm : b;
 
         out->valid = true;
