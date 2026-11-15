@@ -11,6 +11,8 @@
   implied warranties, other than those that are expressly stated in the License.
 */
 
+#include <stdio.h>
+#include <string.h>
 #include <simics/util/strbuf.h>
 #include "cosim.h"
 #include "rv32-core.h"
@@ -277,107 +279,166 @@ imm_gen(const decode_t *d, uint32 instr)
         }
 }
 
+static void pipeline_clear (rv32_t *cpu) {
+        memset(&cpu->if_id, 0, sizeof(cpu->if_id));
+        memset(&cpu->id_ex, 0, sizeof(cpu->id_ex));
+        memset(&cpu->ex_wb, 0, sizeof(cpu->ex_wb));
+}
 
-void
-execute(rv32_t *cpu)
-{
-        uint32 pc = cpu->pc;
-        uint32 instr = fetch(cpu, pc);
-        decode_t d = decode(instr);
+static void stage_if (rv32_t *cpu, if_id_t *out) {
+        out->valid = true;
+        out->pc = cpu->pc;
+        out->instr = fetch(cpu, cpu->pc);
+}
 
-        uint32 rs1_val = reg_read_x(cpu, d.rs1);
-        uint32 rs2_val = reg_read_x(cpu, d.rs2);
-
-        SIM_LOG_INFO(2, cpu->obj, 0, 
-         "pc=0x%08x, instr=0x%08x, opcode=0x%02x, rd=x%u, funct3=0x%u, rs1=x%u, rs2=x%u, funct7=0x%02x"
-         " |I=%d B=%d U=0x%08x J=%d",
-         pc, instr, d.opcode, d.rd, d.funct3, d.rs1, d.rs2, d.funct7,
-         imm_i(instr), imm_b(instr), imm_u(instr), imm_j(instr));
-
-         increment_cycle(cpu);
-
-         if (instr == INSTUCTION_EBREAK) {
-                 increment_step(cpu);
-                 ebreak(cpu);
-                 return;
-         }
-
-         uint32 next_pc = pc + 4; // Default next PC is the next instruction
-         bool register_write = false;
-         uint32 wb_value = 0;
-         bool legal = true;
-
-         switch (d.opcode) {
-         case OPCODE_OP:
-         case OPCODE_OP_IMM:{
-                bool is_imm = (d.opcode == OPCODE_OP_IMM);
-                alu_op_t op;
-                if (!alu_control(d.funct3, d.funct7, is_imm, &op)) {
-                        legal = false;
-                        break;
-                }
-                uint32 b = is_imm ? imm_i(instr) : rs2_val;
-                wb_value = alu_execute(op, rs1_val, b);
-                register_write = true;
-                break;
-         }
-         case OPCODE_LUI:
-                wb_value = imm_u(instr);
-                register_write = true;
-                break;
-         case OPCODE_AUIPC:
-                wb_value = pc + imm_u(instr);
-                register_write = true;
-                break;
-        case OPCODE_JAL:
-                next_pc = pc + imm_j(instr);
-                wb_value = pc + 4; // Store return address in rd
-                register_write = true;
-                break;
-        case OPCODE_JALR:
-                if (d.funct3 != 0x0) {
-                        legal = false;
-                        break;
-                }
-                next_pc = (rs1_val + (uint32)imm_i(instr)) & ~1u; // Clear the least significant bit
-                wb_value = pc + 4; // Store return address in rd
-                register_write = true;
-                break;
-        case OPCODE_BRANCH: {
-                bool valid;
-                bool taken = branch_taken(d.funct3, rs1_val, rs2_val, &valid);
-                if (!valid) {
-                        legal = false;
-                        break;
-                }
-                if (taken) {
-                        next_pc = pc + (uint32)imm_b(instr);
-                }
-                break;
-        }
-        default:
-                legal = false;
-                break;
-        }
-
-        if (!legal) {
-                illegal_instruction(cpu, pc, instr);
+static void stage_id (rv32_t *cpu, const if_id_t *in, id_ex_t *out) {
+        memset(out, 0, sizeof(*out));
+        if (!in->valid) {
                 return;
         }
+        out->valid = true;
+        out->pc = in->pc;
+        out->instr = in->instr;
+        out->d = decode(in->instr);
+        out->ctrl = control_unit(&out->d, in->instr);
+        out->imm = imm_gen(&out->d, in->instr);
+        out->rs1_val = reg_read_x(cpu, out->d.rs1);
+        out->rs2_val = reg_read_x(cpu, out->d.rs2);
+}
 
-        if (next_pc & 0x3) {
-                SIM_LOG_ERROR(cpu->obj, 0, "instruction address misaligned: 0x%08x at pc 0x%08x", next_pc, pc);
-                rv32_halt(cpu, "instruction address misaligned");
+static void stage_ex (rv32_t *cpu, const id_ex_t *in, ex_wb_t *out, bool *redirect, uint32 *target) {
+        memset(out, 0, sizeof(*out));
+        *redirect = false;
+        *target = 0;
+        if (!in->valid) {
                 return;
         }
+        uint32 a = in->rs1_val;
+        uint32 b = in->rs2_val;
+        uint32 op2 = in->ctrl.alu_src_imm ? in->imm : b;
 
-        if(register_write )
-                reg_write_x(cpu, d.rd, wb_value);
+        out->valid = true;
+        out->pc = in->pc;
+        out->instr = in->instr;
+        out->rd = in->d.rd;
+        out->reg_write = in->ctrl.reg_write;
+        out->is_ebreak = in->ctrl.is_ebreak;
+        out->is_illegal = in->ctrl.is_illegal;
+
+        switch (in->ctrl.wb_sel) {
+                case WB_ALU:
+                        out->wb_value = alu_execute(in->ctrl.alu_op, a, op2);
+                        break;
+                case WB_PC4:
+                        out->wb_value = in->pc + 4;
+                        break;
+                case WB_IMM:
+                        out->wb_value = in->imm;
+                        break;
+                case WB_PC_IMM:
+                        out->wb_value = in->pc + in->imm;
+                        break;
+        }
+
+        bool valid;
+        if (in->ctrl.is_jal) {
+                *redirect = true;
+                *target = in->pc + in->imm;
+        } else if (in->ctrl.is_jalr) {
+                *redirect = true;
+                *target = (a + in->imm) & ~1u;
+        } else if (in->ctrl.is_branch && branch_taken(in->d.funct3, a, b, &valid)) {
+                *redirect = true;
+                *target = in->pc + in->imm;
+        }
         
-                
+        if (*redirect && (*target & 0x3)) {
+                out->is_misaligned = true;
+                out->bad_target = *target;
+                out->reg_write = false;
+        }
+}
 
-        cpu->pc = next_pc; // Move to the next instruction
+static bool stage_wb (rv32_t *cpu, const ex_wb_t *in) {
+        if (!in->valid) {
+                return false;
+        }
+
+        if (in->is_illegal) {
+                cpu->pc = in->pc;
+                illegal_instruction(cpu, in->pc, in->instr);
+                return true;
+        }
+
+        if (in->is_misaligned) {
+                cpu->pc = in->pc;
+                SIM_LOG_ERROR(cpu->obj, 0,
+                              "instruction address misaligned: 0x%08x at pc 0x%08x",
+                              in->bad_target, in->pc);
+                rv32_halt(cpu, "instruction address misaligned");
+                return true;
+        }
+        
+        if (in->reg_write && in->rd != 0) {
+                reg_write_x(cpu, in->rd, in->wb_value);
+        }
+        cpu->retired++;
         increment_step(cpu);
+
+        if (in->is_ebreak) {
+                cpu->pc = in->pc;
+                ebreak(cpu);
+                return true;
+        }
+
+        return false;
+        
+}
+
+static const char * slot(char *buf, size_t len, bool valid, uint32 pc) {
+        if (valid) {
+                snprintf(buf, len, "%08x", pc);
+        } else {
+                snprintf(buf, len, "--------");
+        }
+        return buf;
+}
+
+static void trace_cycle(rv32_t *cpu) {
+        char s_if[12], s_id[12], s_ex[12], s_wb[12];
+        SIM_LOG_INFO(3, cpu->obj, 0,
+                     "ciclo %4u | IF %s | ID %s | EX %s | WB %s",
+                     (unsigned)cpu->cycles,
+                     slot(s_if, sizeof s_if, true, cpu->pc),
+                     slot(s_id, sizeof s_id, cpu->if_id.valid, cpu->if_id.pc),
+                     slot(s_ex, sizeof s_ex, cpu->id_ex.valid, cpu->id_ex.pc),
+                     slot(s_wb, sizeof s_wb, cpu->ex_wb.valid, cpu->ex_wb.pc));
+}
+
+void execute (rv32_t *cpu) {
+        increment_cycle(cpu);
+        cpu->cycles++;
+        trace_cycle(cpu);
+
+        if (stage_wb(cpu, &cpu->ex_wb)) {
+                pipeline_clear(cpu);
+                return;
+        }
+
+        ex_wb_t next_ex_wb;
+        id_ex_t next_id_ex;
+        if_id_t next_if_id;
+        bool redirect;
+        uint32 target;
+
+        stage_ex(cpu, &cpu->id_ex, &next_ex_wb, &redirect, &target);
+        stage_id(cpu, &cpu->if_id, &next_id_ex);
+        stage_if(cpu, &next_if_id);
+
+        cpu->ex_wb = next_ex_wb;
+        cpu->id_ex = next_id_ex;
+        cpu->if_id = next_if_id;
+        cpu->pc = redirect ? target : cpu->pc + 4;
 }
 
 /* Text for Simics' disassemble CLI command (e.g. "disassemble 0x0 10")
