@@ -468,15 +468,25 @@ void execute (rv32_t *cpu) {
         stage_id(cpu, &cpu->if_id, &next_id_ex);
         stage_if(cpu, &next_if_id);
 
-        bool stall = hazard_detected(cpu, &next_id_ex, &cpu->id_ex);
-        if (stall) {
-                cpu->stalls++;
+        bool stall = false;
+        if (redirect) {
+                cpu->flushes++;
                 SIM_LOG_INFO(3, cpu->obj, 0,
-                             "stall: pc 0x%08x espera a x%u (pc 0x%08x en EX)",
-                             cpu->if_id.pc, cpu->id_ex.d.rd, cpu->id_ex.pc);
-
+                             "flush: salto en pc 0x%08x a 0x%08x, se descartan"
+                             " ID 0x%08x e IF 0x%08x",
+                             cpu->id_ex.pc, target, cpu->if_id.pc, cpu->pc);
                 memset(&next_id_ex, 0, sizeof(next_id_ex));
-                next_if_id = cpu->if_id;
+                memset(&next_if_id, 0, sizeof(next_if_id));
+        } else {
+                stall = hazard_detected(cpu, &next_id_ex, &cpu->id_ex);
+                if (stall) {
+                        cpu->stalls++;
+                        SIM_LOG_INFO(3, cpu->obj, 0,
+                                     "stall: pc 0x%08x espera a x%u (pc 0x%08x en EX)",
+                                     cpu->if_id.pc, cpu->id_ex.d.rd, cpu->id_ex.pc);
+                        memset(&next_id_ex, 0, sizeof(next_id_ex));
+                        next_if_id = cpu->if_id;
+                }
         }
 
         cpu->ex_wb = next_ex_wb;
