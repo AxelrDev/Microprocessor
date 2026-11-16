@@ -1,0 +1,58 @@
+Output captured to 'C:\Users\JOSE PABLO BRENES\Documents\UCR\Microprocesador\Microprocessor\p4-t01-confwd.txt'
+simics> core0->forwarding
+TRUE
+simics> log-level core0 3
+[core0] Changing log level: 1 -> 3
+simics> run-cycles 200
+[core0 info] ciclo    1 | IF 00000000 | ID -------- | EX -------- | WB --------
+[core0 info] ciclo    2 | IF 00000004 | ID 00000000 | EX -------- | WB --------
+[core0 info] ciclo    3 | IF 00000008 | ID 00000004 | EX 00000000 | WB --------
+[core0 info] ciclo    4 | IF 0000000c | ID 00000008 | EX 00000004 | WB 00000000
+[core0 info] ciclo    5 | IF 00000010 | ID 0000000c | EX 00000008 | WB 00000004
+[core0 info] forward rs2 x2 = 0x00000001 (EX/WB -> EX) a pc 0x00000008
+[core0 info] ciclo    6 | IF 00000014 | ID 00000010 | EX 0000000c | WB 00000008
+[core0 info] ciclo    7 | IF 00000018 | ID 00000014 | EX 00000010 | WB 0000000c
+[core0 info] ciclo    8 | IF 0000001c | ID 00000018 | EX 00000014 | WB 00000010
+[core0 info] forward rs1 x5 = 0x80000000 (EX/WB -> EX) a pc 0x00000014
+[core0 info] ciclo    9 | IF 00000020 | ID 0000001c | EX 00000018 | WB 00000014
+[core0 info] forward rs1 x6 = 0x7fffffff (EX/WB -> EX) a pc 0x00000018
+[core0 info] ciclo   10 | IF 00000024 | ID 00000020 | EX 0000001c | WB 00000018
+[core0 info] ciclo   11 | IF 00000028 | ID 00000024 | EX 00000020 | WB 0000001c
+[core0 info] ciclo   12 | IF 0000002c | ID 00000028 | EX 00000024 | WB 00000020
+[core0 info] ciclo   13 | IF 00000030 | ID 0000002c | EX 00000028 | WB 00000024
+[core0 info] ciclo   14 | IF 00000034 | ID 00000030 | EX 0000002c | WB 00000028
+[core0 info] ciclo   15 | IF 00000038 | ID 00000034 | EX 00000030 | WB 0000002c
+[core0 info] ciclo   16 | IF 0000003c | ID 00000038 | EX 00000034 | WB 00000030
+[core0 info] ciclo   17 | IF 00000040 | ID 0000003c | EX 00000038 | WB 00000034
+[core0 info] ciclo   18 | IF 00000044 | ID 00000040 | EX 0000003c | WB 00000038
+[core0 info] ciclo   19 | IF 00000048 | ID 00000044 | EX 00000040 | WB 0000003c
+[core0 info] ciclo   20 | IF 0000004c | ID 00000048 | EX 00000044 | WB 00000040
+[core0 info] ciclo   21 | IF 00000050 | ID 0000004c | EX 00000048 | WB 00000044
+[core0 info] forward rs2 x18 = 0x00000021 (EX/WB -> EX) a pc 0x00000048
+[core0 info] ciclo   22 | IF 00000054 | ID 00000050 | EX 0000004c | WB 00000048
+[core0 info] ciclo   23 | IF 00000058 | ID 00000054 | EX 00000050 | WB 0000004c
+[core0 info] ciclo   24 | IF 0000005c | ID 00000058 | EX 00000054 | WB 00000050
+[core0 info] ciclo   25 | IF 00000060 | ID 0000005c | EX 00000058 | WB 00000054
+[core0 info] ciclo   26 | IF 00000064 | ID 00000060 | EX 0000005c | WB 00000058
+[core0 info] ciclo   27 | IF 00000068 | ID 00000064 | EX 00000060 | WB 0000005c
+[core0 info] ciclo   28 | IF 0000006c | ID 00000068 | EX 00000064 | WB 00000060
+[core0 info] ciclo   29 | IF 00000070 | ID 0000006c | EX 00000068 | WB 00000064
+[core0 info] ciclo   30 | IF 00000074 | ID 00000070 | EX 0000006c | WB 00000068
+[core0 info] halted at pc 0x00000068: ebreak
+simics> ptime
+┌─────────┬─────┬──────┬────────┐
+│Processor│Steps│Cycles│Time (s)│
+├─────────┼─────┼──────┼────────┤
+│cosim0   │   27│    30│   0.000│
+└─────────┴─────┴──────┴────────┘
+simics> pregs
+x0  = 0x00000000   x1  = 0xffffffff   x2  = 0x00000001   x3  = 0x00000000
+x4  = 0xffffffff   x5  = 0x80000000   x6  = 0x7fffffff   x7  = 0x80000000
+x8  = 0x00000001   x9  = 0x00000000   x10 = 0x00000001   x11 = 0x00000000
+x12 = 0x00000001   x13 = 0x00000001   x14 = 0x00000000   x15 = 0xc0000000
+x16 = 0xffffffff   x17 = 0x00000001   x18 = 0x00000021   x19 = 0x00000002
+x20 = 0x7fffffff   x21 = 0x00000000   x22 = 0xfffff800   x23 = 0xffffffff
+x24 = 0x00000400   x25 = 0x80000000   x26 = 0x00000000   x27 = 0x00000000
+x28 = 0x00000000   x29 = 0x00000000   x30 = 0x00000000   x31 = 0x00000000
+pc  = 0x00000068
+simics> stop-command-line-capture
