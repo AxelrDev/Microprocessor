@@ -377,6 +377,8 @@ static void stage_ex (rv32_t *cpu, const id_ex_t *in, ex_wb_t *out, bool *redire
                 out->is_misaligned = true;
                 out->bad_target = *target;
                 out->reg_write = false;
+                *redirect = false; // Don't actually redirect, just report the misalignment
+                *target = 0;
         }
 }
 
@@ -448,6 +450,19 @@ static bool hazard_detected (const rv32_t *cpu, const id_ex_t *id, const id_ex_t
         return (id->ctrl.uses_rs1 && id->d.rs1 == ex->d.rd) || (id->ctrl.uses_rs2 && id->d.rs2 == ex->d.rd);
 }
 
+static void print_stats(rv32_t *cpu) {
+        double cpi = cpu->retired > 0 ? (double)cpu->cycles / cpu->retired : 0.0;
+        SIM_LOG_INFO(1, cpu->obj, 0,
+                     "Pipeline: fowarding %s, cycles %llu, instructions %llu, "
+                     "CPI= %.2f, stalls %llu, flushes %llu, forwards %llu",
+                         cpu->fwd_en ? "on" : "off",
+                         (unsigned long long)cpu->cycles,
+                         (unsigned long long)cpu->retired, cpi,
+                         (unsigned long long)cpu->stalls,
+                         (unsigned long long)cpu->flushes, 
+                         (unsigned long long)cpu->forwards);
+}
+
 void execute (rv32_t *cpu) {
         increment_cycle(cpu);
         cpu->cycles++;
@@ -455,6 +470,7 @@ void execute (rv32_t *cpu) {
 
         if (stage_wb(cpu, &cpu->ex_wb)) {
                 pipeline_clear(cpu);
+                print_stats(cpu);
                 return;
         }
 
