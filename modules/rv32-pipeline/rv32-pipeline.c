@@ -318,7 +318,7 @@ static void stage_ex (rv32_t *cpu, const id_ex_t *in, ex_wb_t *out, bool *redire
         uint32 b = in->rs2_val;
         
         const ex_wb_t *prev = &cpu->ex_wb;
-        if (prev->valid && prev->reg_write && prev->rd != 0) {
+        if (cpu->fwd_en && prev->valid && prev->reg_write && prev->rd != 0) {
                 if (in->ctrl.uses_rs1 && in->d.rs1 == prev->rd) {
                         a = prev->wb_value;
                         cpu->forwards++;
@@ -436,6 +436,18 @@ static void trace_cycle(rv32_t *cpu) {
                      slot(s_wb, sizeof s_wb, cpu->ex_wb.valid, cpu->ex_wb.pc));
 }
 
+static bool hazard_detected (const rv32_t *cpu, const id_ex_t *id, const id_ex_t *ex) {
+        if (cpu->fwd_en || !id->valid || !ex->valid) {
+                return false;
+        }
+
+        if (!ex->ctrl.reg_write || ex->d.rd == 0) {
+                return false;
+        }
+
+        return (id->ctrl.uses_rs1 && id->d.rs1 == ex->d.rd) || (id->ctrl.uses_rs2 && id->d.rs2 == ex->d.rd);
+}
+
 void execute (rv32_t *cpu) {
         increment_cycle(cpu);
         cpu->cycles++;
@@ -456,10 +468,25 @@ void execute (rv32_t *cpu) {
         stage_id(cpu, &cpu->if_id, &next_id_ex);
         stage_if(cpu, &next_if_id);
 
+        bool stall = hazard_detected(cpu, &next_id_ex, &cpu->id_ex);
+        if (stall) {
+                cpu->stalls++;
+                SIM_LOG_INFO(3, cpu->obj, 0,
+                             "stall: pc 0x%08x espera a x%u (pc 0x%08x en EX)",
+                             cpu->if_id.pc, cpu->id_ex.d.rd, cpu->id_ex.pc);
+
+                memset(&next_id_ex, 0, sizeof(next_id_ex));
+                next_if_id = cpu->if_id;
+        }
+
         cpu->ex_wb = next_ex_wb;
         cpu->id_ex = next_id_ex;
         cpu->if_id = next_if_id;
-        cpu->pc = redirect ? target : cpu->pc + 4;
+        if (redirect) {
+                cpu->pc = target;
+        } else if (!stall) {
+                cpu->pc = cpu->pc + 4;
+        }
 }
 
 /* Text for Simics' disassemble CLI command (e.g. "disassemble 0x0 10")

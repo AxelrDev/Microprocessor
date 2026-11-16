@@ -65,9 +65,28 @@ reg_set_pc(cosim_core_t *core, int n, uint64 value)
         rv32_set_pc(core, value);
 }
 
+/* P4: atributo "forwarding" para encender/apagar el forwarding desde Simics */
+static attr_value_t get_forwarding(conf_object_t *obj) {
+        return SIM_make_attr_boolean(
+                rv32_from_core(conf_obj_to_cosim_core(obj))->fwd_en);
+}
+
+static set_error_t set_forwarding(conf_object_t *obj, attr_value_t *val) {
+        rv32_from_core(conf_obj_to_cosim_core(obj))->fwd_en =
+                SIM_attr_boolean(*val);
+        return Sim_Set_Ok;
+}
+
 void
 rv32_init_class(cosim_core_class_t *core_class)
 {
+        SIM_register_attribute(core_class->conf_class, "forwarding",
+                get_forwarding, set_forwarding,
+                Sim_Attr_Pseudo, "b",
+                        "TRUE: forwarding EX/WB -> EX encendido."
+                       " FALSE: apagado, los riesgos de datos se"
+                       " resuelven con stalls.");
+        
         for (int i = 0; i < RV32_NUM_REGS; i++) {
                 char name[8];
                 snprintf(name, sizeof name, "x%d", i);
@@ -84,6 +103,8 @@ rv32_new_instance(cosim_core_t *core)
         rv32_t *cpu = MM_ZALLOC(1, rv32_t);
         cpu->core = core;
         cpu->obj = core->obj;
+         /* forwarding encendido por defecto */
+        cpu->fwd_en = true;
         return cpu;
 }
 

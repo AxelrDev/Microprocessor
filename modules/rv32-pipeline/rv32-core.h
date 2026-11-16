@@ -112,6 +112,8 @@ typedef struct rv32 {
         uint64 flushes;
         uint64 forwards;
 
+        bool fwd_en;
+
 } rv32_t;
 
 bool read_simics_memory(rv32_t *cpu, uint32 addr, uint8 *buf, unsigned len);
