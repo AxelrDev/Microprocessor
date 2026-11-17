@@ -1,0 +1,5 @@
+addi  x2, x0, 9           # 0x00  x2 = 9
+lui   x1, 0xfffff         # 0x04  x1 = 0xfffff000 (no RAM there)
+jalr  x5, 2(x1)           # 0x08  target 0xfffff002 is misaligned: stop, x5 keeps 0
+addi  x3, x0, 1           # 0x0c  never retired
+ebreak                    # 0x10  never reached
